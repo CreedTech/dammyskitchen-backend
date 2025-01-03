@@ -104,60 +104,134 @@ const placeOrderStripe = async (req, res) => {
 };
 
 // Verify Stripe
-const verifyStripe = async (req, res) => {
-  //   const { session_id } = req.body;
-  //   const { orderId, success, userId } = req.body;
-  const { session_id } = req.query; // Extract session_id from the query string
+// const verifyStripe = async (req, res) => {
+//   //   const { session_id } = req.body;
+//   //   const { orderId, success, userId } = req.body;
+//   const { session_id } = req.query; // Extract session_id from the query string
 
-  if (!session_id) {
-    return res.json({ success: false, message: 'Session ID is required' });
-  }
+//   if (!session_id) {
+//     return res.json({ success: false, message: 'Session ID is required' });
+//   }
 
-  try {
-    // Retrieve the Checkout Session from Stripe
-    const session = await stripe.checkout.sessions.retrieve(session_id);
+//   try {
+//     // Retrieve the Checkout Session from Stripe
+//     const session = await stripe.checkout.sessions.retrieve(session_id);
 
-    if (session.payment_status === 'paid') {
-      //   await orderModel.findByIdAndUpdate(orderId, { payment: true });
-      //   await userModel.findByIdAndUpdate(userId, { cartData: {} });
-      //   res.json({ success: true });
-      // Extract the metadata from the session (including orderId)
-      const { userId, itemsRef } = session.metadata;
+//     if (session.payment_status === 'paid') {
+//       //   await orderModel.findByIdAndUpdate(orderId, { payment: true });
+//       //   await userModel.findByIdAndUpdate(userId, { cartData: {} });
+//       //   res.json({ success: true });
+//       // Extract the metadata from the session (including orderId)
+//       const { userId, itemsRef } = session.metadata;
 
-      // Retrieve the order from the database using the itemsRef (orderId)
-      const order = await orderModel.findById(itemsRef);
+//       // Retrieve the order from the database using the itemsRef (orderId)
+//       const order = await orderModel.findById(itemsRef);
 
-      // If the order is not found, return an error
-      if (!order) {
-        return res.json({ success: false, message: 'Order not found' });
-      }
+//       // If the order is not found, return an error
+//       if (!order) {
+//         return res.json({ success: false, message: 'Order not found' });
+//       }
 
-      // Update the order payment status to 'paid'
-      await orderModel.findByIdAndUpdate(itemsRef, { payment: true });
+//       // Update the order payment status to 'paid'
+//       await orderModel.findByIdAndUpdate(itemsRef, { payment: true });
 
-      // Clear the user's cart data
-      await userModel.findByIdAndUpdate(userId, { cartData: {} });
+//       // Clear the user's cart data
+//       await userModel.findByIdAndUpdate(userId, { cartData: {} });
 
-      res.json({ success: true });
-    } else {
-    //   await orderModel.findByIdAndDelete(orderId);
-        //   res.json({ success: false });
-          // If payment failed or wasn't completed, delete the order
-      const { itemsRef } = session.metadata;  // Retrieve the order reference from metadata
-      const order = await orderModel.findById(itemsRef);
+//       res.json({ success: true });
+//     } else {
+//     //   await orderModel.findByIdAndDelete(orderId);
+//         //   res.json({ success: false });
+//           // If payment failed or wasn't completed, delete the order
+//       const { itemsRef } = session.metadata;  // Retrieve the order reference from metadata
+//       const order = await orderModel.findById(itemsRef);
 
-      if (order) {
-        await orderModel.findByIdAndDelete(itemsRef);  // Delete the order from the database
-      }
+//       if (order) {
+//         await orderModel.findByIdAndDelete(itemsRef);  // Delete the order from the database
+//       }
 
-      res.json({ success: false, message: 'Payment unsuccessful. Order deleted.' });
+//       res.json({ success: false, message: 'Payment unsuccessful. Order deleted.' });
    
+//     }
+//   } catch (error) {
+//     console.log(error);
+//     res.json({ success: false, message: error.message });
+//   }
+// };
+
+const stripeWebhook = async (req, res) => {
+    const endpointSecret = 'whsec_JmKmeR2z3k7QoNUwPVOokEJ9XJItcg14'; // Replace with your Stripe Webhook Signing Secret
+    const sig = req.headers['stripe-signature'];
+
+    let event;
+
+    try {
+        // Verify the webhook signature
+        event = stripe.webhooks.constructEvent(req.body, sig, endpointSecret);
+    } catch (err) {
+        console.error('Webhook verification failed:', err.message);
+        return res.status(400).send(`Webhook Error: ${err.message}`);
     }
-  } catch (error) {
-    console.log(error);
-    res.json({ success: false, message: error.message });
-  }
+
+    // Handle the checkout.session.completed event
+    switch (event.type) {
+        case 'checkout.session.completed':
+            const session = event.data.object;
+
+            // Check if payment is successful
+            if (session.payment_status === 'paid') {
+                const { userId, itemsRef, address, amount } = session.metadata;
+
+                try {
+                    // Retrieve the order from the database using the itemsRef (orderId)
+                    const order = await orderModel.findById(itemsRef);
+
+                    if (!order) {
+                        return res.status(404).send('Order not found');
+                    }
+
+                    // Update the order payment status to 'paid'
+                    await orderModel.findByIdAndUpdate(itemsRef, { payment: true });
+
+                    // Clear the user's cart data
+                    await userModel.findByIdAndUpdate(userId, { cartData: {} });
+
+                    // Optionally log the success
+                    console.log(`Order ${itemsRef} successfully paid and cart cleared for user ${userId}`);
+
+                    res.status(200).send('Payment processed successfully');
+                } catch (error) {
+                    console.error('Error updating order or clearing cart:', error.message);
+                    res.status(500).send('Internal Server Error');
+                }
+            } else {
+                // Handle unsuccessful payment (e.g., delete order or notify)
+                console.log(`Payment failed for session ${session.id}`);
+                const failedOrderId = session.metadata.itemsRef;
+
+                // If payment failed, delete the order from the database
+                await orderModel.findByIdAndDelete(failedOrderId);
+                res.status(200).send('Payment failed, order deleted');
+            }
+            break;
+
+        case 'checkout.session.async_payment_failed':
+            const failedSession = event.data.object;
+            const failedOrderId = failedSession.metadata.itemsRef;
+
+            // If payment failed asynchronously, delete the order from the database
+            await orderModel.findByIdAndDelete(failedOrderId);
+            res.status(200).send('Payment failed, order deleted');
+            break;
+
+        default:
+            console.warn(`Unhandled event type: ${event.type}`);
+    }
+
+    res.status(200).send('Webhook received');
 };
+
+  
 
 // Placing orders using Razorpay Method
 const placeOrderRazorpay = async (req, res) => {
@@ -214,54 +288,54 @@ const verifyRazorpay = async (req, res) => {
   }
 };
 
-const stripeWebhook = async (req, res) => {
-  const endpointSecret = 'whsec_JmKmeR2z3k7QoNUwPVOokEJ9XJItcg14'; // Replace with Stripe Webhook Signing Secret
-  const sig = req.headers['stripe-signature'];
+// const stripeWebhook = async (req, res) => {
+//   const endpointSecret = 'whsec_JmKmeR2z3k7QoNUwPVOokEJ9XJItcg14'; // Replace with Stripe Webhook Signing Secret
+//   const sig = req.headers['stripe-signature'];
 
-  let event;
+//   let event;
 
-  try {
-    // Verify the webhook signature
-    event = stripe.webhooks.constructEvent(req.body, sig, endpointSecret);
-  } catch (err) {
-    console.error('Webhook verification failed:', err.message);
-    return res.status(400).send(`Webhook Error: ${err.message}`);
-  }
+//   try {
+//     // Verify the webhook signature
+//     event = stripe.webhooks.constructEvent(req.body, sig, endpointSecret);
+//   } catch (err) {
+//     console.error('Webhook verification failed:', err.message);
+//     return res.status(400).send(`Webhook Error: ${err.message}`);
+//   }
 
-  // Handle specific Stripe event
-  switch (event.type) {
-    case 'checkout.session.completed':
-      const session = event.data.object;
+//   // Handle specific Stripe event
+//   switch (event.type) {
+//     case 'checkout.session.completed':
+//       const session = event.data.object;
 
-      if (session.payment_status === 'paid') {
-        const { userId, amount, address, items } = session.metadata;
+//       if (session.payment_status === 'paid') {
+//         const { userId, amount, address, items } = session.metadata;
 
-        console.log(session.metadata);
-        // Save order to database
-        // const orderData = {
-        //   userId,
-        //   items: JSON.parse(items),
-        //   address: JSON.parse(address),
-        //   amount,
-        //   paymentMethod: 'Stripe',
-        //   payment: true,
-        //   date: Date.now(),
-        // };
+//         console.log(session.metadata);
+//         // Save order to database
+//         // const orderData = {
+//         //   userId,
+//         //   items: JSON.parse(items),
+//         //   address: JSON.parse(address),
+//         //   amount,
+//         //   paymentMethod: 'Stripe',
+//         //   payment: true,
+//         //   date: Date.now(),
+//         // };
 
-        // const newOrder = new orderModel(orderData);
-        // await newOrder.save();
+//         // const newOrder = new orderModel(orderData);
+//         // await newOrder.save();
 
-        // // Clear user's cart
-        // await userModel.findByIdAndUpdate(userId, { cartData: {} });
-      }
-      break;
+//         // // Clear user's cart
+//         // await userModel.findByIdAndUpdate(userId, { cartData: {} });
+//       }
+//       break;
 
-    default:
-      console.warn(`Unhandled event type: ${event.type}`);
-  }
+//     default:
+//       console.warn(`Unhandled event type: ${event.type}`);
+//   }
 
-  res.status(200).send('Webhook received');
-};
+//   res.status(200).send('Webhook received');
+// };
 
 // All Orders data for Admin Panel
 const allOrders = async (req, res) => {
