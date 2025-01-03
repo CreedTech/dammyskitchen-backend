@@ -84,7 +84,7 @@ const placeOrderStripe = async (req, res) => {
     });
 
     const session = await stripe.checkout.sessions.create({
-      success_url: `${origin}/verify?session_id={CHECKOUT_SESSION_ID}`,
+      success_url: `${origin}/verify?success=true&orderId=${newOrder._id}`,
       cancel_url: `${origin}/verify?success=false&orderId=${newOrder._id}`,
       line_items,
       mode: 'payment',
@@ -95,6 +95,8 @@ const placeOrderStripe = async (req, res) => {
         itemsRef: newOrder._id.toString(), // Store the order ID in metadata for later use
       },
     });
+      
+      console.log(session);
 
     res.json({ success: true, session_url: session.url });
   } catch (error) {
