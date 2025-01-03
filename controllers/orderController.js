@@ -162,6 +162,7 @@ const placeOrderStripe = async (req, res) => {
 // };
 
 const stripeWebhook = async (req, res) => {
+    console.log('Webhook payload:', req.body);
     const endpointSecret = 'whsec_JmKmeR2z3k7QoNUwPVOokEJ9XJItcg14'; // Replace with your Stripe Webhook Signing Secret
     const sig = req.headers['stripe-signature'];
 

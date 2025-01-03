@@ -15,7 +15,7 @@ const app = express()
 const port = process.env.PORT || 4000
 connectDB()
 connectCloudinary()
-app.use('/api/v1/stripe/',webhookRouter);
+app.use('/api/v1/stripe/', bodyParser.raw({ type: 'application/json' }),webhookRouter);
 // middlewares
 app.use(express.json())  // Parse incoming JSON payloads
 app.use(cors())  // Enable cross-origin requests
