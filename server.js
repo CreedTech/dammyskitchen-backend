@@ -8,19 +8,21 @@ import userRouter from './routes/userRoute.js'
 import productRouter from './routes/productRoute.js'
 import cartRouter from './routes/cartRoute.js'
 import orderRouter from './routes/orderRoute.js'
+import webhookRouter from './routes/webhookRoute.js'
 
 // App Config
 const app = express()
 const port = process.env.PORT || 4000
 connectDB()
 connectCloudinary()
-
+app.use('/api/v1/stripe/',webhookRouter);
 // middlewares
 app.use(express.json())  // Parse incoming JSON payloads
 app.use(cors())  // Enable cross-origin requests
 
 // Use the raw body parser only for the webhook route to verify Stripe's signature
-app.use('/api/order/webhook', bodyParser.raw({ type: 'application/json' }));
+// app.use('/api/order/webhook', bodyParser.raw({ type: 'application/json' }));
+
 
 // api endpoints
 app.use('/api/user', userRouter)

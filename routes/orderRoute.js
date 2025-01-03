@@ -8,7 +8,7 @@ import {
   updateStatus,
 //   verifyStripe,
   verifyRazorpay,
-  stripeWebhook,
+//   stripeWebhook,
 } from '../controllers/orderController.js';
 import adminAuth from '../middleware/adminAuth.js';
 import authUser from '../middleware/auth.js';
@@ -31,6 +31,6 @@ orderRouter.post('/userorders', authUser, userOrders);
 // orderRouter.post('/verifyStripe', authUser, verifyStripe);
 orderRouter.post('/verifyRazorpay', authUser, verifyRazorpay);
 
-orderRouter.post('/webhook', stripeWebhook);
+// orderRouter.post('/webhook', stripeWebhook);
 
 export default orderRouter;
