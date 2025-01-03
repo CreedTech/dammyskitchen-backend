@@ -376,7 +376,7 @@ const updateStatus = async (req, res) => {
 
 export {
   verifyRazorpay,
-  verifyStripe,
+//   verifyStripe,
   placeOrder,
   placeOrderStripe,
   placeOrderRazorpay,

@@ -6,7 +6,7 @@ import {
   allOrders,
   userOrders,
   updateStatus,
-  verifyStripe,
+//   verifyStripe,
   verifyRazorpay,
   stripeWebhook,
 } from '../controllers/orderController.js';
@@ -28,7 +28,7 @@ orderRouter.post('/razorpay', authUser, placeOrderRazorpay);
 orderRouter.post('/userorders', authUser, userOrders);
 
 // verify payment
-orderRouter.post('/verifyStripe', authUser, verifyStripe);
+// orderRouter.post('/verifyStripe', authUser, verifyStripe);
 orderRouter.post('/verifyRazorpay', authUser, verifyRazorpay);
 
 orderRouter.post('/webhook', stripeWebhook);
