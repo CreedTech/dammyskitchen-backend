@@ -84,7 +84,7 @@ const placeOrderStripe = async (req, res) => {
     });
 
     const session = await stripe.checkout.sessions.create({
-      success_url: `${origin}/verify?success=true&orderId=${newOrder._id}`,
+      success_url: `${origin}/verify?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${origin}/verify?success=false&orderId=${newOrder._id}`,
       line_items,
       mode: 'payment',
@@ -105,13 +105,13 @@ const placeOrderStripe = async (req, res) => {
 
 // Verify Stripe
 const verifyStripe = async (req, res) => {
-//   const { session_id } = req.body;
-    //   const { orderId, success, userId } = req.body;
-    const { session_id } = req.query;  // Extract session_id from the query string
+  //   const { session_id } = req.body;
+  //   const { orderId, success, userId } = req.body;
+  const { session_id } = req.query; // Extract session_id from the query string
 
-    if (!session_id) {
-      return res.json({ success: false, message: 'Session ID is required' });
-    }
+  if (!session_id) {
+    return res.json({ success: false, message: 'Session ID is required' });
+  }
 
   try {
     // Retrieve the Checkout Session from Stripe
@@ -140,8 +140,18 @@ const verifyStripe = async (req, res) => {
 
       res.json({ success: true });
     } else {
-      await orderModel.findByIdAndDelete(orderId);
-      res.json({ success: false });
+    //   await orderModel.findByIdAndDelete(orderId);
+        //   res.json({ success: false });
+          // If payment failed or wasn't completed, delete the order
+      const { itemsRef } = session.metadata;  // Retrieve the order reference from metadata
+      const order = await orderModel.findById(itemsRef);
+
+      if (order) {
+        await orderModel.findByIdAndDelete(itemsRef);  // Delete the order from the database
+      }
+
+      res.json({ success: false, message: 'Payment unsuccessful. Order deleted.' });
+   
     }
   } catch (error) {
     console.log(error);
