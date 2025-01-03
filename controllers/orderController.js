@@ -48,18 +48,18 @@ const placeOrderStripe = async (req, res) => {
     const { userId, items, amount, address } = req.body;
     const { origin } = req.headers;
 
-    // const orderData = {
-    //   userId,
-    //   items,
-    //   address,
-    //   amount,
-    //   paymentMethod: 'Stripe',
-    //   payment: false,
-    //   date: Date.now(),
-    // };
+    const orderData = {
+      userId,
+      items,
+      address,
+      amount,
+      paymentMethod: 'Stripe',
+      payment: false,
+      date: Date.now(),
+    };
 
-    // const newOrder = new orderModel(orderData);
-    // await newOrder.save();
+    const newOrder = new orderModel(orderData);
+    await newOrder.save();
 
     const line_items = items.map((item) => ({
       price_data: {
@@ -83,27 +83,18 @@ const placeOrderStripe = async (req, res) => {
       quantity: 1,
     });
 
-    // const session = await stripe.checkout.sessions.create({
-    //   success_url: `${origin}/verify?success=true&orderId=${newOrder._id}`,
-    //   cancel_url: `${origin}/verify?success=false&orderId=${newOrder._id}`,
-    //   line_items,
-    //   mode: 'payment',
-      // });
-      
-        // Create Stripe Checkout Session
-        const session = await stripe.checkout.sessions.create({
-            payment_method_types: ['card'],
-            success_url: `${origin}/verify?success=true&session_id={CHECKOUT_SESSION_ID}`,
-            cancel_url: `${origin}/verify?success=false`,
-            line_items,
-            mode: 'payment',
-            metadata: {
-                userId,
-                address: JSON.stringify(address), // Metadata for future use
-                amount,
-                items: JSON.stringify(items),
-            },
-        });
+    const session = await stripe.checkout.sessions.create({
+      success_url: `${origin}/verify?success=true&orderId=${newOrder._id}`,
+      cancel_url: `${origin}/verify?success=false&orderId=${newOrder._id}`,
+      line_items,
+      mode: 'payment',
+      metadata: {
+        userId,
+        address: JSON.stringify(address),
+        amount,
+        itemsRef: newOrder._id.toString(), // Store the order ID in metadata for later use
+      },
+    });
 
     res.json({ success: true, session_url: session.url });
   } catch (error) {
@@ -114,52 +105,35 @@ const placeOrderStripe = async (req, res) => {
 
 // Verify Stripe
 const verifyStripe = async (req, res) => {
-    //   const { orderId, success, userId } = req.body;
-    // const { success, userId, items, amount, address, orderId } = req.body;
-    const { session_id } = req.body;
+  const { session_id } = req.body;
+  const { orderId, success, userId } = req.body;
 
-    try {
-       // Retrieve the Checkout Session from Stripe
-       const session = await stripe.checkout.sessions.retrieve(session_id);
-      if (session.payment_status === 'paid') {
-    //     const orderData = {
-    //         userId,
-    //         items,
-    //         address,
-    //         amount,
-    //         paymentMethod: "Stripe",
-    //         payment: true,
-    //         date: Date.now(),
-    //     };
+  try {
+    // Retrieve the Checkout Session from Stripe
+    const session = await stripe.checkout.sessions.retrieve(session_id);
 
-    //     const newOrder = new orderModel(orderData);
-    //       await newOrder.save();
-          
-    // //   await orderModel.findByIdAndUpdate(orderId, { payment: true });
-    //   await userModel.findByIdAndUpdate(userId, { cartData: {} });
-          //   res.json({ success: true });
-          
-              // Extract metadata
-              const { userId, amount, address, items } = session.metadata;
+    if (session.payment_status === 'paid') {
+      //   await orderModel.findByIdAndUpdate(orderId, { payment: true });
+      //   await userModel.findByIdAndUpdate(userId, { cartData: {} });
+      //   res.json({ success: true });
+      // Extract the metadata from the session (including orderId)
+      const { userId, itemsRef } = session.metadata;
 
-              // Save the order in the database
-              const orderData = {
-                  userId,
-                  items: JSON.parse(items),
-                  address: JSON.parse(address),
-                  amount,
-                  paymentMethod: 'Stripe',
-                  payment: true,
-                  date: Date.now(),
-              };
-  
-              const newOrder = new orderModel(orderData);
-              await newOrder.save();
-  
-              // Clear user cart
-              await userModel.findByIdAndUpdate(userId, { cartData: {} });
-  
-              res.json({ success: true });
+      // Retrieve the order from the database using the itemsRef (orderId)
+      const order = await orderModel.findById(itemsRef);
+
+      // If the order is not found, return an error
+      if (!order) {
+        return res.json({ success: false, message: 'Order not found' });
+      }
+
+      // Update the order payment status to 'paid'
+      await orderModel.findByIdAndUpdate(itemsRef, { payment: true });
+
+      // Clear the user's cart data
+      await userModel.findByIdAndUpdate(userId, { cartData: {} });
+
+      res.json({ success: true });
     } else {
       await orderModel.findByIdAndDelete(orderId);
       res.json({ success: false });
@@ -233,8 +207,7 @@ const stripeWebhook = async (req, res) => {
 
   try {
     // Verify the webhook signature
-      event = stripe.webhooks.constructEvent(req.body, sig, endpointSecret);
-    
+    event = stripe.webhooks.constructEvent(req.body, sig, endpointSecret);
   } catch (err) {
     console.error('Webhook verification failed:', err.message);
     return res.status(400).send(`Webhook Error: ${err.message}`);
@@ -246,9 +219,9 @@ const stripeWebhook = async (req, res) => {
       const session = event.data.object;
 
       if (session.payment_status === 'paid') {
-          const { userId, amount, address, items } = session.metadata;
-          
-          console.log(session.metadata);
+        const { userId, amount, address, items } = session.metadata;
+
+        console.log(session.metadata);
         // Save order to database
         // const orderData = {
         //   userId,
