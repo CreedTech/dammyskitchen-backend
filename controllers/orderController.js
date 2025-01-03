@@ -105,8 +105,13 @@ const placeOrderStripe = async (req, res) => {
 
 // Verify Stripe
 const verifyStripe = async (req, res) => {
-  const { session_id } = req.body;
-  const { orderId, success, userId } = req.body;
+//   const { session_id } = req.body;
+    //   const { orderId, success, userId } = req.body;
+    const { session_id } = req.query;  // Extract session_id from the query string
+
+    if (!session_id) {
+      return res.json({ success: false, message: 'Session ID is required' });
+    }
 
   try {
     // Retrieve the Checkout Session from Stripe
