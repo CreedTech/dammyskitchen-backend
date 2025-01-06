@@ -9,6 +9,8 @@ import productRouter from './routes/productRoute.js';
 import cartRouter from './routes/cartRoute.js';
 import orderRouter from './routes/orderRoute.js';
 import webhookRouter from './routes/webhookRoute.js';
+import containerRouter from './routes/containerRoute.js';
+import proteinRouter from './routes/proteinRoute.js';
 
 // App Config
 const app = express();
@@ -30,6 +32,10 @@ app.use(cors()); // Enable cross-origin requests
 // api endpoints
 app.use('/api/user', userRouter);
 app.use('/api/product', productRouter);
+// Protein routes
+app.use('/api/proteins', proteinRouter);
+// Side dish routes
+app.use('/api/containers', containerRouter);
 app.use('/api/cart', cartRouter);
 app.use('/api/order', orderRouter); // This can handle other order-related routes
 
