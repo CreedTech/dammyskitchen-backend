@@ -25,7 +25,7 @@ import mongoose from 'mongoose';
 
 const productSchema = new mongoose.Schema({
   name: { type: String, required: true },
-  description: { type: String, required: true },
+  description: { type: String, required: false },
   bestseller: { type: Boolean, default: false },
   price: { type: Number, default: 15 }, // Base price for daily size (750 ml)
   image: { type: [String], required: true }, // Array of image URLs
