@@ -208,6 +208,14 @@ const stripeWebhook = async (req, res) => {
       console.error('PaymentIntent failed:', failureReason);
 
       // Optional: Notify user of payment failure
+      const user = await userModel.findById(session.metadata.userId);
+      if (user) {
+        sendNotification({
+          to: user.email,
+          subject: 'Payment Failed',
+          message: `Your payment for order ${order} failed. Reason: ${failureReason}. Please try again.`,
+        });
+      }
     } else if (type === 'charge.refunded') {
       const charge = event.data.object;
       const orderId = charge.metadata?.itemsRef;
