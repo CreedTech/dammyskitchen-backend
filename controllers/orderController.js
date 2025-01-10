@@ -465,7 +465,11 @@ const verifyRazorpay = async (req, res) => {
 // All Orders data for Admin Panel
 const allOrders = async (req, res) => {
   try {
-    const orders = await orderModel.find({});
+    const { completed } = req.body;
+
+    const filter =
+      completed === false ? { isCompleted: false } : { isCompleted: true };
+    const orders = await orderModel.find(filter).sort({ date: -1 });
     res.json({ success: true, orders });
   } catch (error) {
     console.log(error);
@@ -486,12 +490,29 @@ const userOrders = async (req, res) => {
   }
 };
 
-// update order status from Admin Panel
+// Update order status from Admin Panel
 const updateStatus = async (req, res) => {
   try {
     const { orderId, status } = req.body;
 
-    await orderModel.findByIdAndUpdate(orderId, { status });
+    const updateData = { status };
+
+    if (status === 'Delivered') {
+      const order = await orderModel.findById(orderId);
+
+      // For COD orders, set payment to true when delivered
+      if (order.paymentMethod === 'COD') {
+        updateData.payment = true;
+      }
+
+      // Mark as completed if delivered and payment is done
+      if (order.payment || order.paymentMethod === 'COD') {
+        updateData.isCompleted = true;
+      }
+    }
+
+    await orderModel.findByIdAndUpdate(orderId, updateData);
+
     res.json({ success: true, message: 'Status Updated' });
   } catch (error) {
     console.log(error);
