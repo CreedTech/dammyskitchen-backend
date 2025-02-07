@@ -12,7 +12,7 @@ const client = new SMTPClient({
 export const requestQuote = async (req, res) => {
   console.log(req.body);
   const { name, email, phone, message } = req.body;
-    console.log(req.body.name);
+  console.log(req.body.name);
   // Validate required fields
   if (!name || !email || !message) {
     return res.status(400).json({
@@ -25,7 +25,7 @@ export const requestQuote = async (req, res) => {
     // Sending the email
     await client.sendAsync({
       text: `Name: ${name}\nEmail: ${email}\nPhone: ${phone}\nMessage: ${message}`,
-      from: process.env.EMAIL_USER, // Sender's email address
+      from: `${name} <${email}>`, // Sender's email address
       to: process.env.EMAIL_USER, // Your email to receive the messages
       subject: 'New Quote Request',
     });
