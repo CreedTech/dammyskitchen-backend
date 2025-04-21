@@ -39,11 +39,31 @@ const placeOrder = async (req, res) => {
     // await userModel.findByIdAndUpdate(userId, { cartData: {} });
     // const user = await userModel.findById(userId);
     try {
+      // Send email to the customer (Email type is 'orderPlaced')
       await sendNotification({
         to: address.email,
         subject: 'Order Placed',
-        message: `Hello ${address.firstName} ${address.lastName}, Your order has been placed successfully. Your order ID is ${newOrder._id}.`,
+        message: '', // The content is generated in the sendNotification function
+        orderData: newOrder,
+        emailType: 'orderPlaced', // Specify the email type
+        isCustomer: true, // This is for customer notification
       });
+
+      // Send email to the business owner (Email type is 'orderPlaced')
+      await sendNotification({
+        to: 'kitchendammys@gmail.com',
+        subject: 'New Order Received',
+        message: '', // The content is generated in the sendNotification function
+        orderData: newOrder,
+        emailType: 'orderPlaced', // Specify the email type
+        isCustomer: false, // This is for business owner notification
+      });
+
+      // await sendNotification({
+      //   to: address.email,
+      //   subject: 'Order Placed',
+      //   message: `Hello ${address.firstName} ${address.lastName}, Your order has been placed successfully. Your order ID is ${newOrder._id}.`,
+      // });
       console.log('Order saved:', newOrder._id);
       console.log('Sending email to:', address.email);
     } catch (notifyErr) {
@@ -141,7 +161,6 @@ const placeOrderStripe = async (req, res) => {
     res.status(500).json({ success: false, message: 'Internal server error.' });
   }
 };
-
 const stripeWebhook = async (req, res) => {
   let event;
 
@@ -198,16 +217,40 @@ const stripeWebhook = async (req, res) => {
           ? `Your payment for order ${orderId} was successful!`
           : `Your payment for order ${orderId} failed. Please try again.`;
 
-        sendNotification({
+        await sendNotification({
           to: user.email,
           subject: 'Order Payment Update',
           message,
+          orderData: order,
+          emailType: order.payment ? 'paymentSuccess' : 'paymentFailure',
+          isCustomer: true,
         });
       }
     } else if (type === 'payment_intent.succeeded') {
-      // Handle successful payments if additional logic is needed
       const paymentIntent = event.data.object;
       console.log('PaymentIntent was successful:', paymentIntent.id);
+
+      const orderId = paymentIntent.metadata.itemsRef;
+      const order = await orderModel.findById(orderId);
+
+      if (order) {
+        order.payment = true;
+        order.status = 'Paid';
+        await order.save();
+
+        // Optional: Send payment success notification to the customer
+        const user = await userModel.findById(paymentIntent.metadata.userId);
+        if (user) {
+          await sendNotification({
+            to: user.email,
+            subject: 'Payment Successful',
+            message: `Your payment for order ${orderId} was successful.`,
+            orderData: order,
+            emailType: 'paymentSuccess',
+            isCustomer: true,
+          });
+        }
+      }
     } else if (type === 'payment_intent.payment_failed') {
       const paymentIntent = event.data.object;
       const failureReason =
@@ -215,13 +258,28 @@ const stripeWebhook = async (req, res) => {
       console.error('PaymentIntent failed:', failureReason);
 
       // Optional: Notify user of payment failure
-      const user = await userModel.findById(session.metadata.userId);
+      const user = await userModel.findById(paymentIntent.metadata.userId);
       if (user) {
-        sendNotification({
-          to: user.email,
-          subject: 'Payment Failed',
-          message: `Your payment for order ${order} failed. Reason: ${failureReason}. Please try again.`,
-        });
+        const order = await orderModel.findById(
+          paymentIntent.metadata.itemsRef
+        );
+        if (order) {
+          await sendNotification({
+            to: user.email, // Customer email
+            subject: 'Payment Failed',
+            orderData: order,
+            emailType: 'paymentFailure', // Payment failure email type
+            isCustomer: true, // Send to the customer
+          });
+
+          await sendNotification({
+            to: 'kitchendammys@gmail.com', // Business owner email
+            subject: 'Payment Failure Notification',
+            orderData: order,
+            emailType: 'paymentFailure', // Payment failure email type
+            isCustomer: false, // Send to the business owner
+          });
+        }
       }
     } else if (type === 'charge.refunded') {
       const charge = event.data.object;
@@ -233,9 +291,30 @@ const stripeWebhook = async (req, res) => {
           order.status = 'Refunded';
           await order.save();
         }
-      }
 
-      // Optional: Notify user about the refund
+        // Notify user about the refund
+        const user = await userModel.findById(charge.metadata.userId);
+        if (user) {
+          await sendNotification({
+            to: user.email, // Customer email
+            subject: 'Refund Processed',
+            message: `Your refund for order ${orderId} has been processed successfully.`,
+            orderData: { _id: orderId }, // Minimal order data
+            emailType: 'refundProcessed',
+            isCustomer: true, // Send to the customer
+          });
+
+          // Optionally notify the business owner
+          await sendNotification({
+            to: 'kitchendammys@gmail.com', // Business owner email
+            subject: 'Refund Processed Notification',
+            message: `Refund processed for order ${orderId}.`,
+            orderData: { _id: orderId },
+            emailType: 'refundProcessed',
+            isCustomer: false, // Send to the business owner
+          });
+        }
+      }
     } else {
       console.log(`Unhandled event type ${type}`);
     }
@@ -246,6 +325,126 @@ const stripeWebhook = async (req, res) => {
     res.status(500).send('Webhook handling failed');
   }
 };
+
+// const stripeWebhook = async (req, res) => {
+//   let event;
+
+//   try {
+//     const sig = req.headers['stripe-signature'];
+//     const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+
+//     // Verify the signature
+//     event = stripe.webhooks.constructEvent(req.body, sig, webhookSecret);
+//   } catch (err) {
+//     console.error('Webhook signature verification failed:', err.message);
+//     return res.status(400).send(`Webhook Error: ${err.message}`);
+//   }
+
+//   // Save webhook event to database
+//   try {
+//     await webhookLogModel.create({
+//       eventId: event.id,
+//       eventType: event.type,
+//       payload: event.data.object,
+//       receivedAt: new Date(),
+//     });
+//   } catch (logError) {
+//     console.error('Failed to log webhook event:', logError.message);
+//   }
+
+//   const { type } = event;
+
+//   try {
+//     if (type === 'checkout.session.completed') {
+//       const session = event.data.object;
+
+//       const orderId = session.metadata.itemsRef;
+//       const paymentStatus = session.payment_status;
+//       const userId = session.metadata.userId;
+
+//       // Update order in database
+//       const order = await orderModel.findById(orderId);
+//       if (!order) {
+//         console.error('Order not found:', orderId);
+//         return res.status(404).send('Order not found');
+//       }
+
+//       order.payment = paymentStatus === 'paid';
+//       order.status = order.payment ? 'Paid' : 'Payment Failed';
+//       order.paymentMethod = 'Stripe';
+
+//       await order.save();
+
+//       // Notify user
+//       const user = await userModel.findById(userId);
+//       if (user) {
+//         const message = order.payment
+//           ? `Your payment for order ${orderId} was successful!`
+//           : `Your payment for order ${orderId} failed. Please try again.`;
+
+//         sendNotification({
+//           to: user.email,
+//           subject: 'Order Payment Update',
+//           message,
+//         });
+//       }
+//     } else if (type === 'payment_intent.succeeded') {
+//       // Handle successful payments if additional logic is needed
+//       const paymentIntent = event.data.object;
+//       console.log('PaymentIntent was successful:', paymentIntent.id);
+//     } else if (type === 'payment_intent.payment_failed') {
+//       const paymentIntent = event.data.object;
+//       const failureReason =
+//         paymentIntent.last_payment_error?.message || 'Unknown error';
+//       console.error('PaymentIntent failed:', failureReason);
+
+//       // Optional: Notify user of payment failure
+//       const user = await userModel.findById(session.metadata.userId);
+//       if (user) {
+//         // sendNotification({
+//         //   to: user.email,
+//         //   subject: 'Payment Failed',
+//         //   message: `Your payment for order ${order} failed. Reason: ${failureReason}. Please try again.`,
+//         // });
+//         await sendNotification({
+//           to: user.email, // Customer email
+//           subject: 'Payment Failed',
+//           orderData: orderData,
+//           emailType: 'paymentFailure', // Payment failure email type
+//           isCustomer: true, // Send to the customer
+//         });
+
+//         await sendNotification({
+//           to: 'kitchendammys@gmail.com', // Business owner email
+//           subject: 'Payment Failure Notification',
+//           orderData: orderData,
+//           emailType: 'paymentFailure', // Payment failure email type
+//           isCustomer: false, // Send to the business owner
+//         });
+//       }
+//     } else if (type === 'charge.refunded') {
+//       const charge = event.data.object;
+//       const orderId = charge.metadata?.itemsRef;
+
+//       if (orderId) {
+//         const order = await orderModel.findById(orderId);
+//         if (order) {
+//           order.status = 'Refunded';
+//           await order.save();
+//         }
+//       }
+
+//       // Optional: Notify user about the refund
+//     } else {
+//       console.log(`Unhandled event type ${type}`);
+//     }
+
+//     res.status(200).json({ received: true });
+//   } catch (error) {
+//     console.error('Webhook processing error:', error.message);
+//     res.status(500).send('Webhook handling failed');
+//   }
+// };
 
 const issueRefund = async (req, res) => {
   const { chargeId, orderId, reason } = req.body;
@@ -275,10 +474,25 @@ const issueRefund = async (req, res) => {
     await order.save();
 
     // Notify user
-    sendNotification({
-      to: order.address.email,
+    // sendNotification({
+    //   to: order.address.email,
+    //   subject: 'Refund Processed',
+    //   message: `Your refund for order ${orderId} has been processed successfully.`,
+    // });
+    await sendNotification({
+      to: order.address.email, // Customer email
       subject: 'Refund Processed',
-      message: `Your refund for order ${orderId} has been processed successfully.`,
+      orderData: orderData, // Order data containing the refund details
+      emailType: 'refundProcessed', // Refund processed email type
+      isCustomer: true, // Send to the customer
+    });
+
+    await sendNotification({
+      to: 'kitchendammys@gmail.com', // Business owner email
+      subject: 'Refund Processed Notification',
+      orderData: orderData, // Order data containing the refund details
+      emailType: 'refundProcessed', // Refund processed email type
+      isCustomer: false, // Send to the business owner
     });
 
     res.json({ success: true, refund });
