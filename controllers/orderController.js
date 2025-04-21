@@ -21,6 +21,7 @@ const razorpayInstance = new razorpay({
 const placeOrder = async (req, res) => {
   try {
     const { userId, items, amount, address } = req.body;
+    console.log(address);
 
     const orderData = {
       userId,
@@ -43,6 +44,8 @@ const placeOrder = async (req, res) => {
         subject: 'Order Placed',
         message: `Hello ${address.firstName} ${address.lastName}, Your order has been placed successfully. Your order ID is ${newOrder._id}.`,
       });
+      console.log('Order saved:', newOrder._id);
+      console.log('Sending email to:', address.email);
     } catch (notifyErr) {
       console.error('Notification error:', notifyErr.message);
     }
