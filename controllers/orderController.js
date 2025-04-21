@@ -37,11 +37,15 @@ const placeOrder = async (req, res) => {
 
     // await userModel.findByIdAndUpdate(userId, { cartData: {} });
     // const user = await userModel.findById(userId);
-    await sendNotification({
-      to: address.email,
-      subject: 'Order Placed',
-      message: `Hello ${address.firstName} ${address.lastName}, Your order has been placed successfully. Your order ID is ${newOrder._id}.`,
-    });
+    try {
+      await sendNotification({
+        to: address.email,
+        subject: 'Order Placed',
+        message: `Hello ${address.firstName} ${address.lastName}, Your order has been placed successfully. Your order ID is ${newOrder._id}.`,
+      });
+    } catch (notifyErr) {
+      console.error('Notification error:', notifyErr.message);
+    }
 
     res.json({ success: true, message: 'Order Placed' });
   } catch (error) {
