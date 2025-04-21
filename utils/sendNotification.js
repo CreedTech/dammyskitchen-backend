@@ -40,7 +40,11 @@ const sendNotification = async ({
   const orderHtml = `
     <h2>Order ID: ${orderData?._id}</h2>
     <p><strong>Total:</strong> ₦${orderData?.amount}</p>
-    <p><strong>Delivery Address:</strong> ${orderData?.address}</p>
+<p><strong>Delivery Address:</strong> 
+  ${orderData.address?.street || ''}, 
+  ${orderData.address?.city || ''}, 
+  ${orderData.address?.postcode || ''}
+</p>
     <table cellpadding="10" cellspacing="0" style="border-collapse: collapse; width: 100%;">
       <thead>
         <tr style="background-color: #f8f8f8;">
@@ -64,7 +68,7 @@ const sendNotification = async ({
     // Order placed email content
     htmlContent = isCustomer
       ? `
-      <h2>Hi ${orderData.firstName},</h2>
+      <h2>Hi ${orderData.address.firstName},</h2>
       <p>Thanks for ordering from <strong>Dammy's Kitchen</strong>!</p>
       <p>Here’s a summary of your order:</p>
       ${orderHtml}
@@ -72,8 +76,16 @@ const sendNotification = async ({
     `
       : `
       <h2>🍴 New Order Received!</h2>
-      <p><strong>Customer:</strong> ${orderData.firstName} ${orderData.lastName} (${orderData.email})</p>
-      <p><strong>Delivery Address:</strong> ${orderData.address}</p>
+     <p><strong>Customer:</strong> ${orderData.address.firstName} ${
+          orderData.address.lastName
+        } (${orderData.address.email})</p>
+
+      <p><strong>Delivery Address:</strong> 
+  ${orderData.address?.street || ''}, 
+  ${orderData.address?.city || ''}, 
+  ${orderData.address?.postcode || ''}
+</p>
+
       ${orderHtml}
       <p>Head to your dashboard to start processing. 🚚</p>
     `;
@@ -85,11 +97,16 @@ const sendNotification = async ({
       <p>Thank you for your payment. Your order has been successfully processed.</p>
       <p><strong>Order ID:</strong> ${orderData._id}</p>
       <p><strong>Amount Paid:</strong> ₦${orderData.amount}</p>
-      <p><strong>Delivery Address:</strong> ${orderData.address}</p>
+      <p><strong>Delivery Address:</strong> 
+  ${orderData.address?.street || ''}, 
+  ${orderData.address?.city || ''}, 
+  ${orderData.address?.postcode || ''}
+</p>
+
     `
       : `
       <h2>Payment Success Notification</h2>
-      <p><strong>Customer:</strong> ${orderData.firstName} ${orderData.lastName}</p>
+      <p><strong>Customer:</strong> ${orderData.address.firstName} ${orderData.address.lastName}</p>
       <p><strong>Order ID:</strong> ${orderData._id}</p>
       <p><strong>Amount Paid:</strong> ₦${orderData.amount}</p>
       <p>Head to your dashboard to process the payment.</p>
@@ -102,11 +119,16 @@ const sendNotification = async ({
       <p>Unfortunately, your payment was not successful. Please try again.</p>
       <p><strong>Order ID:</strong> ${orderData._id}</p>
       <p><strong>Amount:</strong> ₦${orderData.amount}</p>
-      <p><strong>Delivery Address:</strong> ${orderData.address}</p>
+      <p><strong>Delivery Address:</strong> 
+  ${orderData.address?.street || ''}, 
+  ${orderData.address?.city || ''}, 
+  ${orderData.address?.postcode || ''}
+</p>
+
     `
       : `
       <h2>Payment Failure Notification</h2>
-      <p><strong>Customer:</strong> ${orderData.firstName} ${orderData.lastName}</p>
+      <p><strong>Customer:</strong> ${orderData.address.firstName} ${orderData.address.lastName}</p>
       <p><strong>Order ID:</strong> ${orderData._id}</p>
       <p><strong>Amount:</strong> ₦${orderData.amount}</p>
       <p>Head to your dashboard to manage the failed payment.</p>
@@ -116,13 +138,20 @@ const sendNotification = async ({
     htmlContent = isCustomer
       ? `
       <h2>Refund Processed</h2>
-      <p>Your refund for order <strong>${orderData._id}</strong> has been processed successfully.</p>
+      <p>Your refund for order <strong>${
+        orderData._id
+      }</strong> has been processed successfully.</p>
       <p><strong>Amount Refunded:</strong> ₦${orderData.amount}</p>
-      <p><strong>Delivery Address:</strong> ${orderData.address}</p>
+      <p><strong>Delivery Address:</strong> 
+  ${orderData.address?.street || ''}, 
+  ${orderData.address?.city || ''}, 
+  ${orderData.address?.postcode || ''}
+</p>
+
     `
       : `
       <h2>Refund Processed Notification</h2>
-      <p><strong>Customer:</strong> ${orderData.firstName} ${orderData.lastName}</p>
+      <p><strong>Customer:</strong> ${orderData.address.firstName} ${orderData.address.lastName}</p>
       <p>Refund for order ID <strong>${orderData._id}</strong> has been processed.</p>
       <p><strong>Amount Refunded:</strong> ₦${orderData.amount}</p>
       <p>Head to your dashboard to process the refund.</p>
