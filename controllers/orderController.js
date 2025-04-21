@@ -148,10 +148,19 @@ const placeOrderStripe = async (req, res) => {
       line_items,
       mode: 'payment',
       metadata: {
+        sessionRef: 'from-frontend',
         userId,
         address: JSON.stringify(address),
         amount,
         itemsRef: newOrder._id.toString(), // Store order ID for future reference
+      },
+      payment_intent_data: {
+        metadata: {
+          userId,
+          itemsRef: newOrder._id.toString(),
+          address: JSON.stringify(address),
+          amount,
+        },
       },
     });
 
@@ -196,6 +205,7 @@ const stripeWebhook = async (req, res) => {
       const orderId = session.metadata.itemsRef;
       const paymentStatus = session.payment_status;
       const userId = session.metadata.userId;
+      console.log(session.metadata);
 
       // Update order in database
       const order = await orderModel.findById(orderId);
