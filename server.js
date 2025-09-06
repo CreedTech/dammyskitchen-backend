@@ -12,6 +12,8 @@ import webhookRouter from './routes/webhookRoute.js';
 import containerRouter from './routes/containerRoute.js';
 import proteinRouter from './routes/proteinRoute.js';
 import quoteRouter from './routes/quoteRoute.js';
+import cron from 'node-cron';
+import sendWhatsApp from './utils/sendWhatsapp.js';
 
 // App Config
 const app = express();
@@ -43,6 +45,16 @@ app.use('/api/v1', quoteRouter);
 
 app.get('/', (req, res) => {
   res.send('API Working');
+});
+
+cron.schedule('0 9 * * *', async () => {
+  await sendWhatsApp({
+    orderId: 'HEARTBEAT',
+    customer: 'System',
+    amount: 0,
+    to: process.env.PERSONAL_WHATSAPP, // personal WhatsApp
+  });
+  console.log('📡 WhatsApp heartbeat sent');
 });
 
 app.listen(port, () => console.log(`Server started on PORT: ${port}`));
