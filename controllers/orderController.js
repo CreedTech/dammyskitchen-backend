@@ -267,7 +267,7 @@ const stripeWebhook = async (req, res) => {
           });
           await sendWhatsApp({
             orderId: orderId,
-            customer: `${user.firstName} ${address.lastName}`,
+            customer: `${order.address.firstName} ${order.address.lastName}`,
             amount: order.amount,
             to: process.env.BUSINESS_WHATSAPP,
           });
@@ -384,7 +384,7 @@ const issueRefund = async (req, res) => {
     await sendNotification({
       to: order.address.email, // Customer email
       subject: 'Refund Processed',
-      orderData: orderData, // Order data containing the refund details
+      orderData: order, // Order data containing the refund details
       emailType: 'refundProcessed', // Refund processed email type
       isCustomer: true, // Send to the customer
     });
@@ -392,7 +392,7 @@ const issueRefund = async (req, res) => {
     await sendNotification({
       to: 'kitchendammys@gmail.com', // Business owner email
       subject: 'Refund Processed Notification',
-      orderData: orderData, // Order data containing the refund details
+      orderData: order, // Order data containing the refund details
       emailType: 'refundProcessed', // Refund processed email type
       isCustomer: false, // Send to the business owner
     });
